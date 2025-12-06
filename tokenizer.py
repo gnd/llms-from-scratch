@@ -1,24 +1,33 @@
 import re
-import os
+import json
 
-# some variables
-source_dir = "sources"
+class TokenizerV1:
+    def __init__(self):
+        self.str_to_int = {}
+        self.int_to_str = {}
 
-# some globals
-preprocessed_texts = []
+    def encode(self, text):
+        ids = []
+        preprocessed_text = re.split(r'([,.:;?_!"()\']|--|\s)', text)
+        preprocessed_text = [item.strip("<>:=@").strip() for item in preprocessed_text if item.strip()]
+        for token in preprocessed_text:
+            if token not in self.str_to_int:
+                self.str_to_int[token] = len(self.str_to_int)+1
+            else:
+                ids.append(self.str_to_int[token])
+        self.int_to_str = {i:s for s,i in self.str_to_int.items()}
+        return ids
 
-# import source texts from sources dir into proprocessed_texts array
-for filename in os.listdir(source_dir):
-    filepath = os.path.join(source_dir, filename)
+    def decode(self, ids):
+        text = " ".join([self.int_to_str[s] for s in ids])
+        text = re.sub(r'\s+([,.?!"()\'])', r'\1', text)
+        return text
 
-    if os.path.isfile(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-        	print(f"Opening {filepath} ..")
-        	raw_text = f.read()
-        	result = re.split(r'([,.:;?_!"()\']|--|\s)', raw_text)
-        	preprocessed_texts.extend([item.strip("<>:=@").strip() for item in result if item.strip()])
+    def save_vocab(self, file):
+        with open(file, "w") as f:
+            json.dump(self.str_to_int, f, indent=2)
 
-# generate a vocabulary
-all_words = sorted(set(preprocessed_texts))
-print(f"All words: {len(all_words)}")
-vocab = {token:integer for integer,token in enumerate(all_words)}
+    def load_vocab(self, file):
+        with open(file, "r") as f:
+            self.str_to_int = json.load(f)
+            self.int_to_str = {i:s for s,i in self.str_to_int.items()}
