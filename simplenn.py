@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
@@ -41,26 +42,6 @@ class ToyDataset(Dataset):
 		return self.labels.shape[0]
 
 
-#torch.manual_seed(123)
-model = NeuralNetwork(50, 3)
-print(model)
-
-num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-print("Total number of trainable model parameters:", num_params)
-
-print(model.layers[0].weight)
-print(model.layers[0].bias)
-print(model.layers[0].weight.shape)
-
-# simple forward pass
-X = torch.rand((1, 50))
-# using softmax for class categorizations using probabilities
-out = torch.softmax(model(X), dim=1)
-print(out)
-
-# can also use with torch.no_grad():
-#	out = model(X), when model already trained
-
 X_train = torch.tensor([
 [-1.2, 3.1],
 [-0.9, 2.9],
@@ -85,17 +66,48 @@ train_loader = DataLoader(
 	dataset=train_ds,
 	batch_size=2,
 	shuffle=True,
-	num_workers=0
+	num_workers=0,
+	drop_last=True
 )
 
 test_loader = DataLoader(
 	dataset=test_ds,
-	batch_size=2,
+	batch_size=1,
 	shuffle=False,
 	num_workers=0
 )
 
-for idx, (inputs, targets) in enumerate(train_loader):
-	print(f"Batch {idx+1}:", inputs, targets)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-print(train_loader)
+model = NeuralNetwork(2, 2)
+model = model.to(device)
+
+optimizer = torch.optim.SGD(model.parameters(), lr=0.3)
+num_epochs =10
+for epoch in range(num_epochs):
+	model.train()
+
+	for batch_idx, (features, labels) in enumerate(train_loader):
+		features, labels = features.to(device), labels.to(device)
+		logits = model(features)
+		loss = F.cross_entropy(logits, labels)
+		optimizer.zero_grad()
+		loss.backward()
+		optimizer.step()
+
+		### LOGGING
+		print(	f"Epoch: {epoch+1:03d}/{num_epochs:03d}"
+				f" | Batch {batch_idx:03d}/{len(train_loader):03d}"
+				f" | Train Loss: {loss:.2f}")
+
+	model.eval()
+	# Insert optional model evaluation code
+
+# Save model
+torch.save(model.state_dict(), "model.pth")
+
+# Classify
+with torch.no_grad():
+	for batch_idx, (features, labels) in enumerate(test_loader):
+		res = torch.softmax(model(features), dim=1)
+		print(f"Result: {res} Label: {labels}")

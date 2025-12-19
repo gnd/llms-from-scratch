@@ -1,2 +1,4 @@
 sources/
 objects/
+*.pth
+__pycache__/
